@@ -1,0 +1,71 @@
+# data
+data:
+  eval_loss_data: 'daily-talk-contiguous' # Optional Fill
+  mmlu_data: 'new_mmlu' # Optional Fill
+  swuggy_data: 'swuggy' # Optional Fill
+  sblimp_data: 'sblimp'
+  ssc_data: 'ssc'
+  cd_data: ['cd_qa_m', 'cd_qa_h', 'cd_qa_c', 'cd_mt_m', 'cd_mt_h', 'cd_mt_c']
+  shuffle: true
+  train_data: ['daily-talk-contiguous'] # Fill
+  aug:
+    gain_prob: 0.
+    pitch_prob: 0.
+    temporal_shift_prob: 0.
+
+# model
+moshi_paths: 
+  hf_repo_id: "kyutai/moshiko-pytorch-bf16"
+  moshi_path: ""
+
+text_llm:
+  enable: false
+  hf_repo_id: "Qwen/Qwen2.5-3B-Instruct"
+
+full_finetuning: false # Activate lora.enable if partial finetuning
+lora:
+  enable: true # Set to False if full_finetuning is True
+  rank: 128
+  scaling: 2.
+  ft_embed: false # Optional, set to True if you want to finetune the embedding layer
+
+first_codebook_weight_multiplier: 100.
+text_padding_weight: .5
+
+# optim
+duration_sec: 180
+eval_duration_sec: 180
+eval_batches: 1000
+batch_size: 8
+max_steps: [2400]
+gradient_checkpointing: true
+optim:
+  lr: 2e-6
+  proj_lr: 1e-4
+  finetune_lr: 5e-6
+  weight_decay: 0.1
+  pct_start: 0.05
+
+# other
+seed: 0
+log_freq: 1
+eval_freq: 100
+do_eval: true
+do_eval_loss: false
+do_mmlu: true
+do_slm: false
+do_cd: false
+do_ckpt: true
+ckpt_freq: 100
+
+
+save_adapters: false # Must be False if full_finetuning is True
+
+run_dir: "experiment"  # Fill
+
+# This part is optional and can be kept commented out 
+# wandb:
+#   project: "moshi" # your wandb project name
+#   run_name: "daily_1600_depformer_text_embedding-frozen_depformer_text_proj-highlr_depformer_emb-lowlr" # your wandb run name
+#   key: "a0fd0947900dfe6a6e0e0bf28f8e73a06f7d91e6" # your wandb api key
+#   offline: False
