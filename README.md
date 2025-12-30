@@ -1,34 +1,73 @@
+# Moshi-Finetune (Modified for the DSAA architecture)
+
+> **Note:** This repository is a fork and significant modification of [kyutai-labs/moshi-finetune](https://github.com/kyutai-labs/moshi-finetune), adapted for research purposes as part of my diploma thesis.  
+> **Original authors retain copyright** for their code; see [Acknowledgments](#acknowledgments).
+
+## About This Repository
+
+This repository contains code and experiments for my diploma thesis, which explores architectural modifications to the Moshi model.  
+It is based on the official Moshi finetuning repository, but **includes substantial changes** to both the training pipeline and the underlying Moshi model code.
+
+### Key Differences from Upstream
+
+- **Custom Moshi Implementation:**  
+  The `moshi/` directory contains a modified version of the Moshi library.  
+  **To use these changes, you must replace your environment’s installed Moshi package** (e.g., `.venv/lib/python3.11/site-packages/moshi`) with this directory.  
+  This is necessary for development and to enable the architectural changes described in my thesis.
+
+- **Experimental Modules:**  
+  All custom modules used in experiments are implemented in `modules.py`.
+
+- **Scripts for Experiments and Analysis:**  
+  The `scripts/` directory contains various utilities and experiment scripts:
+    - `ae_train.py` — Training script for the autoencoder.
+    - `analyze_state.py` — Script for analyzing model states.
+    - `get_hidden_states.py` — Extracts hidden states for latent space analysis.
+    - `analyze_states.py` — Performs latent space analysis.
+    - `fix_alignments.py` — Fixes alignment issues in Whisper timestamps (addresses cases where initial timestamps are too long).
+    - `compare_evals.py` — Compares benchmark results across models to identify patterns.
+    - `loss_landscape.py` — Performs loss landscape analysis.
+    - ...and more.
+
+For details on the modifications and experimental setup, please refer to the accompanying thesis document.
+
 ## Usage
 
-**Important:**  
-Before running any experiments or training, you must first download the original DSAA model weights and update your configuration file accordingly.
+To use the modified DSAA architecture, follow these steps:
 
-1. **Download DSAA Model Weights:**  
-   The pretrained DSAA model weights (`.safetensors` file) are available at [https://huggingface.co/Cucvui/dsaa](https://huggingface.co/Cucvui/dsaa).  
-   Download the file and place it in a directory of your choice (e.g., `weights/dsaa.safetensors`).
+1. **Download the Original DSAA Model Weights:**  
+   Download the pretrained DSAA model weights (`.safetensors` file) from [https://huggingface.co/Cucvui/dsaa](https://huggingface.co/Cucvui/dsaa).  
+   Place the file in a directory of your choice (e.g., `weights/dsaa.safetensors`).
 
-2. **Update Your Configuration File:**  
-   In your `.yaml` config (see `example/qwen.yaml` for a template), set the path to the downloaded weights under the `moshi_paths` section using the `moshi_path` key. For example:
+2. **Create and Edit a Configuration File:**  
+   Set up a `.yaml` configuration file in the `/example` directory.  
+   See `example/qwen.yaml` for a template.  
+   In your config, you **must** point to the downloaded weights using the `moshi_paths.moshi_path` key:
    ```yaml
    moshi_paths:
      moshi_path: "weights/dsaa.safetensors"
    ```
-   This ensures the modified code uses the correct DSAA model as the starting point.
+   You can also specify other options, such as which text LLM to use under the `text_llm` section (e.g., set `hf_repo_id` to your desired Hugging Face model).
 
-3. **Continue with the Usual Workflow:**  
-   - Set up your configuration file as described above.
-   - Initialize the new model and save its weights:
-     ```sh
-     uv run torchrun --nproc-per-node 1 -m setup_new_model example/qwen.yaml
-     ```
-   - Proceed to training or other tasks:
-     ```sh
-     uv run torchrun --master_port=$MASTER_PORT --nproc-per-node 1 -m train example/qwen.yaml
-     ```
+3. **(Optional) Set Up a New Model:**  
+   If you want to make architectural changes (e.g., change the text LLM), run:
+   ```sh
+   uv run torchrun --nproc-per-node 1 -m setup_new_model example/qwen.yaml
+   ```
+   This will initialize the new model and save its weights to `weights/model.safetensors`.  
+   **Note:** This step is optional if you only want to use or fine-tune the original DSAA model.
 
-**Note:**  
-- Make sure to adjust the configuration file as needed for your experiment.
-- The `setup_new_model.py` script must be run before training to properly initialize and save the model weights.
+4. **Train or Use the Model:**  
+   You can now proceed to training or other tasks using the weights specified in your config.  
+   For example, to start training:
+   ```sh
+   uv run torchrun --master_port=$MASTER_PORT --nproc-per-node 1 -m train example/qwen.yaml
+   ```
+
+**Notes:**  
+- The original DSAA model weights are always required, even if you skip the setup step.
+- Adjust the configuration file as needed for your experiment.
+- Run `setup_new_model.py` only if you want to reinitialize or modify the model (e.g., change the text LLM).
 - Below is the original README from the upstream repository for reference.
 
 ## Citing and Acknowledgments
