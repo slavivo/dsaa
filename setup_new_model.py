@@ -22,67 +22,15 @@ from finetune.monitoring.utils import set_logger
 from finetune.utils import logged_closing, set_random_seed
 from finetune.wrapped_model import get_fsdp_model
 from moshi.models import loaders
+from modules import ResidualProjector, TextPreservingProjector, MaskedEmbedding
 
 from transformers import AutoModelForCausalLM, AutoConfig
 
 from torch import nn
+import torch
 from safetensors.torch import save_model
 
-class MaskedEmbedding(nn.Module):
-    def __init__(self, original_emb, zero_idx):
-        super().__init__()
-        self.zero_idx = zero_idx
-
-        self.emb = nn.Embedding(
-            num_embeddings=original_emb.num_embeddings,
-            embedding_dim=original_emb.embedding_dim,
-            device=original_emb.weight.device,
-            dtype=original_emb.weight.dtype,
-        )
-        self.emb.weight.data.copy_(original_emb.weight.data)
-
-    def forward(self, x):
-        is_zero = (x == self.zero_idx)
-        x_safe = x.clamp_min(0)
-        y = self.emb(x_safe)
-
-        y = torch.where(
-            is_zero[..., None],
-            torch.zeros(1, device=y.device, dtype=y.dtype),
-            y,
-        )
-        return y
-
-class TextPreservingProjector(nn.Module):
-    def __init__(self, text_dim, audio_dim, hidden_dim, output_dim, dropout=0.1):
-        super().__init__()
-        self.text_dim = text_dim
-        
-        # Only process the concatenated features for refinement
-        input_dim = text_dim + audio_dim
-        
-        self.fusion = nn.Sequential(
-            nn.LayerNorm(input_dim),
-            nn.Linear(input_dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, output_dim)
-        )
-        
-        # Initialize to near-zero output
-        nn.init.normal_(self.fusion[-1].weight, mean=0.0, std=0.01)
-        nn.init.zeros_(self.fusion[-1].bias)
-        
-        self.alpha = nn.Parameter(torch.tensor(0.1))  # learnable mixing
-
-    def forward(self, x):
-        text_part = x[..., :self.text_dim]
-        # Text passes through unchanged, fusion adds audio-aware refinement
-        fusion_out = self.fusion(x)
-        return text_part + self.alpha * fusion_out
-
 logger = logging.getLogger("train")
-
 
 def main_logger_info(message: str) -> None:
     if get_rank() == 0:
@@ -228,7 +176,8 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     else:
         checkpoint_info.text_llm = None
 
-    model.text_projector = TextPreservingProjector(2048, 4096, 4096, 2048).to(model.device)
+    text_dim = text_llm.get_input_embeddings().embedding_dim
+    model.text_projector = TextPreservingProjector(text_dim, 4096, 4096, text_dim).to(model.device)
     model.text_head = nn.Linear(
         in_features=text_llm.get_output_embeddings().in_features,
         out_features=text_llm.get_output_embeddings().out_features,
@@ -237,7 +186,7 @@ def _train(args: TrainArgs, exit_stack: ExitStack):
     model.text_head.weight.data = text_llm.get_output_embeddings().weight.data.clone()
     model.text_head.to(dtype=text_llm.get_output_embeddings().weight.dtype, device=model.device)
     model.depformer_projectors = nn.ModuleList(
-        [ResidualProjector(4096+2048+1024, 4096, 1024).to(model.device) for _ in range(model.dep_q)]
+        [ResidualProjector(4096+text_dim+1024, 4096, 1024).to(model.device) for _ in range(model.dep_q)]
     )
     original_emb = text_llm.get_input_embeddings()
     embedding_matrix = original_emb.weight.data.float()
